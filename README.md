@@ -1,1 +1,1 @@
-# static
+# http://www.xunhanliu.top/static/
