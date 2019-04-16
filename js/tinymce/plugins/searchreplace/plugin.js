@@ -26,7 +26,7 @@
 		hiddenTextElementsMap = schema.getWhiteSpaceElements(); // TEXTAREA, PRE, STYLE, SCRIPT
 		shortEndedElementsMap = schema.getShortEndedElements(); // BR, IMG, INPUT
 
-		function getMatchIndexes(m, captureGroup) {
+		function getMatchIndexes(m, captureGroup) {//使用正则表达式的方式匹配纯文本，返回【start pos，end pos，string】
 			captureGroup = captureGroup || 0;
 
 			if (!m[0]) {
@@ -52,23 +52,23 @@
 		function getText(node) {
 			var txt;
 
-			if (node.nodeType === 3) {
+			if (node.nodeType === 3) { //到了最后一层的文本层了
 				return node.data;
 			}
 
-			if (hiddenTextElementsMap[node.nodeName] && !blockElementsMap[node.nodeName]) {
+			if (hiddenTextElementsMap[node.nodeName] && !blockElementsMap[node.nodeName]) { //隐藏非块级元素，空格代替
 				return '';
 			}
 
 			txt = '';
 
-			if (blockElementsMap[node.nodeName] || shortEndedElementsMap[node.nodeName]) {
+			if (blockElementsMap[node.nodeName] || shortEndedElementsMap[node.nodeName]) { //块级元素、短end元素，回车代替
 				txt += '\n';
 			}
 
 			if ((node = node.firstChild)) {
 				do {
-					txt += getText(node);
+					txt += getText(node);  //递归的方式进行获取纯文本
 				} while ((node = node.nextSibling));
 			}
 
@@ -80,8 +80,8 @@
 				endNodeIndex, innerNodes = [], atIndex = 0, curNode = node,
 				matchLocation = matches.shift(), matchIndex = 0;
 
-			out: while (true) {
-				if (blockElementsMap[curNode.nodeName] || shortEndedElementsMap[curNode.nodeName]) {
+			out: while (true) {  //这一步其实是递归操作，改成的循环。他会遍历dom中的每个元素
+				if (blockElementsMap[curNode.nodeName] || shortEndedElementsMap[curNode.nodeName]) { //这里需要跟前文的纯文本匹配结合起来
 					atIndex++;
 				}
 
@@ -90,21 +90,21 @@
 						// We've found the ending
 						endNode = curNode;
 						endNodeIndex = matchLocation[1] - atIndex;
-					} else if (startNode) {
+					} else if (startNode) {   //把匹配过程中，涉及到的元素，入栈。用于加灰底标记
 						// Intersecting node
 						innerNodes.push(curNode);
 					}
 
-					if (!startNode && curNode.length + atIndex > matchLocation[0]) {
+					if (!startNode && curNode.length + atIndex > matchLocation[0]) { //匹配的文字是从curNode中间（开始）的位置开始匹配到的。
 						// We've found the match start
 						startNode = curNode;
-						startNodeIndex = matchLocation[0] - atIndex;
+						startNodeIndex = matchLocation[0] - atIndex; //存储了一个偏移量。匹配点开始处距离curNode开始处的偏移。
 					}
-
+        //注意上文两处用了>= 原因：curNode.length一般是>1的，而匹配的文字通常也是从中间开始匹配的。这一块的匹配是基于索引的匹配，而且是按照curNode.length进行扫描的。
 					atIndex += curNode.length;
 				}
 
-				if (startNode && endNode) {
+				if (startNode && endNode) {  //匹配到了
 					curNode = replaceFn({
 						startNode: startNode,
 						startNodeIndex: startNodeIndex,
@@ -112,8 +112,8 @@
 						endNodeIndex: endNodeIndex,
 						innerNodes: innerNodes,
 						match: matchLocation[2],
-						matchIndex: matchIndex
-					});
+						matchIndex: matchIndex  //到当前为止，遍历过的元素个数
+					});  //加灰底操作
 
 					// replaceFn has to return the node that replaced the endNode
 					// and then we step back so we can continue from the end of the
@@ -122,23 +122,23 @@
 					startNode = null;
 					endNode = null;
 					innerNodes = [];
-					matchLocation = matches.shift();
+					matchLocation = matches.shift(); //开始填装下一个匹配信息
 					matchIndex++;
 
 					if (!matchLocation) {
 						break; // no more matches
 					}
 				} else if ((!hiddenTextElementsMap[curNode.nodeName] || blockElementsMap[curNode.nodeName]) && curNode.firstChild) {
-					// Move down
+					// Move down  找儿子节点
 					curNode = curNode.firstChild;
 					continue;
 				} else if (curNode.nextSibling) {
-					// Move forward:
+					// Move forward:  找下一个姊妹节点
 					curNode = curNode.nextSibling;
 					continue;
 				}
 
-				// Move forward or up:
+				// Move forward or up:  既没有儿子，也没有姊妹节点，往上找。
 				while (true) {
 					if (curNode.nextSibling) {
 						curNode = curNode.nextSibling;
@@ -146,7 +146,7 @@
 					} else if (curNode.parentNode !== node) {
 						curNode = curNode.parentNode;
 					} else {
-						break out;
+						break out;  //出大循环。整个editor文档遍历完毕。
 					}
 				}
 			}
@@ -165,7 +165,7 @@
 				makeReplacementNode = function(fill, matchIndex) {
 					var clone = stencilNode.cloneNode(false);
 
-					clone.setAttribute('data-mce-index', matchIndex);
+					clone.setAttribute('data-mce-index', matchIndex); //标记索引，被moveSelection() getElmIndex调用 ，便于查找。
 
 					if (fill) {
 						clone.appendChild(doc.createTextNode(fill));
@@ -181,7 +181,7 @@
 				var before, after, parentNode, startNode = range.startNode,
 					endNode = range.endNode, matchIndex = range.matchIndex;
 
-				if (startNode === endNode) {
+				if (startNode === endNode) {  //不跨节点 把整个节点考虑成3部分，只有中间的那部分是需要加灰底的
 					var node = startNode;
 
 					parentNode = node.parentNode;
@@ -204,7 +204,7 @@
 
 					return el;
 				}
-
+        //跨多个节点。startNode和endNode都是分割成两部分考虑，而中间的就直接加灰底。
 				// Replace startNode -> [innerNodes...] -> endNode (in that order)
 				before = doc.createTextNode(startNode.data.substring(0, range.startNodeIndex));
 				after = doc.createTextNode(endNode.data.substring(range.endNodeIndex));
@@ -234,11 +234,11 @@
 			};
 		}
 
-		text = getText(node);
+		text = getText(node); //获取文档的纯文本
 		if (!text) {
 			return;
 		}
-
+    //对纯文本进行匹配
 		if (regex.global) {
 			while ((m = regex.exec(text))) {
 				matches.push(getMatchIndexes(m, captureGroup));
@@ -247,10 +247,10 @@
 			m = text.match(regex);
 			matches.push(getMatchIndexes(m, captureGroup));
 		}
-
+    //对dom进行匹配，并加灰底
 		if (matches.length) {
 			count = matches.length;
-			stepThroughMatches(node, matches, genReplacer(replacementNode));
+			stepThroughMatches(node, matches, genReplacer(replacementNode)); //genReplacer(replacementNode)回调函数，用于找到匹配后，对匹配部分进行加灰底操作。
 		}
 
 		return count;
@@ -262,9 +262,9 @@
 		function showDialog() {
 			var last = {}, selectedText;
 
-			selectedText = tinymce.trim(editor.selection.getContent({format: 'text'}));
+			selectedText = tinymce.trim(editor.selection.getContent({format: 'text'})); //获取选择的文本，用于直接显示在对话框中
 
-			function updateButtonStates() {
+			function updateButtonStates() {  //更新下一个和上一个 按钮的状态
 				win.statusbar.find('#next').disabled(!findSpansByIndex(currentIndex + 1).length);
 				win.statusbar.find('#prev').disabled(!findSpansByIndex(currentIndex - 1).length);
 			}
@@ -274,7 +274,7 @@
 					win.find('#find')[0].focus();
 				});
 			}
-
+    //关于窗口创建部分，以后不要使用这种方式进行创建。推荐使用： https://www.tiny.cloud/docs/ui-components/。 关于参数部分的设置，有空再写。
 			var win = tinymce.ui.Factory.create({
 				type: 'window',
 				layout: "flex",
@@ -293,24 +293,24 @@
 					wholeWord = win.find('#words').checked();
 
 					text = win.find('#find').value();
-					if (!text.length) {
+					if (!text.length) {  //未填文本就进行查找，直接返回了。
 						self.done(false);
 						win.statusbar.items().slice(1).disabled(true);
 						return;
 					}
 
-					if (last.text == text && last.caseState == caseState && last.wholeWord == wholeWord) {
-						if (findSpansByIndex(currentIndex + 1).length === 0) {
+					if (last.text == text && last.caseState == caseState && last.wholeWord == wholeWord) {  //可以找到查找的文字，第二次点击查找，会进入此判断
+						if (findSpansByIndex(currentIndex + 1).length === 0) {  //currentIndex起始为-1，由moveSelection()进行赋值
 							notFoundAlert();
 							return;
 						}
 
-						self.next();
+						self.next();  //高亮下一个找的
 						updateButtonStates();
 						return;
 					}
-
-					count = self.find(text, caseState, wholeWord);
+          //已填充查找的文字，第一次点击查找，会进入下文
+					count = self.find(text, caseState, wholeWord);//查找，并在主文档中加灰底标记，并高亮第一个找到的
 					if (!count) {
 						notFoundAlert();
 					}
@@ -324,13 +324,13 @@
 						wholeWord: wholeWord
 					};
 				},
-				buttons: [
-					{text: "Find", subtype: 'primary', onclick: function() {
+				buttons: [  //这一部分是放到了win.statusbar中了，调用
+					{text: "Find", subtype: 'primary', onclick: function() {  //查找按钮 触发onSubmit
 						win.submit();
 					}},
 					{text: "Replace", disabled: true, onclick: function() {
 						if (!self.replace(win.find('#replace').value())) {
-							win.statusbar.items().slice(1).disabled(true);
+							win.statusbar.items().slice(1).disabled(true);  //除了第一个查找按钮，其他的都disable
 							currentIndex = -1;
 							last = {};
 						}
@@ -397,7 +397,7 @@
 
 		function markAllMatches(regex) {
 			var node, marker;
-
+      //创建marker span(就是找到了对应的字体，我怎样标记出来)
 			marker = editor.dom.create('span', {
 				"data-mce-bogus": 1
 			});
@@ -513,18 +513,18 @@
 		self.replace = function(text, forward, all) {
 			var i, nodes, node, matchIndex, currentMatchIndex, nextIndex = currentIndex, hasMore;
 
-			forward = forward !== false;
+			forward = forward !== false;  //true 往下找
 
 			node = editor.getBody();
-			nodes = tinymce.grep(tinymce.toArray(node.getElementsByTagName('span')), isMatchSpan);
+			nodes = tinymce.grep(tinymce.toArray(node.getElementsByTagName('span')), isMatchSpan);  //类似于filter的功能
 			for (i = 0; i < nodes.length; i++) {
 				var nodeIndex = getElmIndex(nodes[i]);
 
 				matchIndex = currentMatchIndex = parseInt(nodeIndex, 10);
-				if (all || matchIndex === currentIndex) {
+				if (all || matchIndex === currentIndex) {  //通过后一个条件来区分all或者替换1个。（替换1个时，此循环只进入一次）
 					if (text.length) {
 						nodes[i].firstChild.nodeValue = text;
-						unwrap(nodes[i]);
+						unwrap(nodes[i]); //把自定义的marker去掉。
 					} else {
 						removeNode(nodes[i]);
 					}
@@ -543,7 +543,7 @@
 					if (forward) {
 						nextIndex--;
 					}
-				} else if (currentMatchIndex > currentIndex) {
+				} else if (currentMatchIndex > currentIndex) { //注currentMatchIndex是全局变量，指示已经高亮到第几个sel,把后面的index都减去1，因为要删除替换一个元素
 					nodes[i].setAttribute('data-mce-index', currentMatchIndex - 1);
 				}
 			}
@@ -570,18 +570,18 @@
 				var nodeIndex = getElmIndex(nodes[i]);
 
 				if (nodeIndex !== null && nodeIndex.length) {
-					if (nodeIndex === currentIndex.toString()) {
+					if (nodeIndex === currentIndex.toString()) { //记录当前高亮的选区
 						if (!startContainer) {
 							startContainer = nodes[i].firstChild;
 						}
 
-						endContainer = nodes[i].firstChild;
+						endContainer = nodes[i].firstChild; //更新选区的最后一部分，会以最后一次赋值为准。
 					}
 
 					unwrap(nodes[i]);
 				}
 			}
-
+      //载入当前高亮的选区
 			if (startContainer && endContainer) {
 				var rng = editor.dom.createRng();
 				rng.setStart(startContainer, 0);
