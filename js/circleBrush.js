@@ -3,7 +3,33 @@ var shiftKey;
 var ctrlKey;
 
 //由于keyUp keyDown 比较操蛋, 在父元素上加
+function  IsPointInPolygon(py ,pt)
+{
+    count = py.length;
 
+    if(count < 3)
+    {
+        return false;
+    }
+
+    result = false;
+
+    for(var i = 0, j = count - 1; i < count; i++)
+    {
+        var p1 = py[i];
+        var p2 = py[j];
+
+        if(p1.x < pt.x && p2.x >= pt.x || p2.x < pt.x && p1.x >= pt.x)
+        {
+            if(p1.y + (pt.x - p1.x) / (p2.x - p1.x) * (p2.y - p1.y) < pt.y)
+            {
+                result = !result;
+            }
+        }
+        j = i;
+    }
+    return result;
+}
 
 
 class circleBrush {
